@@ -1,0 +1,37 @@
+<!-- 载入静态文件 更早版本可能会用load staticfiles -->
+{% load static %}
+
+<!DOCTYPE html>
+<!-- 网站主语言 -->
+<html lang="zh-cn">
+
+<head>
+    <!-- 网站采用的字符编码 -->
+    <meta charset="utf-8">
+    <title>数据分析</title>
+
+    <link rel="stylesheet" href="{% static 'css/datatables/dataTables.semanticui.min.css' %}">
+    <link rel="stylesheet" href="{% static 'css/Semantic-UI-CSS-master/semantic.min.css' %}">
+
+    <script src="{% static 'js/jquery/jquery-3.4.1.js' %}"></script>
+    <script src="{% static 'js/datatables/jquery.dataTables.min.js' %}"></script>
+    <script src="{% static 'js/datatables/dataTables.semanticui.min.js' %}"></script>
+    <script src="{% static 'js/datatables/percentageBars.js' %}"></script>
+    <script type="text/javascript" src="{% static 'js/Semantic-UI-CSS-master/semantic.js' %}"></script>
+    <script src="{% static 'js/echarts/echarts.js' %}"></script>
+    <script src="{% static 'js/echarts/china.js' %}"></script>
+</head>
+
+
+<body>
+
+<!-- 引入导航栏 -->
+{% include 'chpa_data/header.html' %}
+<!-- 预留具体页面的位置 -->
+{% block body %}{% endblock body %}
+<!-- 引入注脚 -->
+{% include 'chpa_data/footer.html' %}
+
+</body>
+
+</html>
