@@ -133,10 +133,15 @@ def get_distinct_list(column, db_table):
 '''
 def search(request, column, kw):
     # 最简单的单一字符串like，返回不重复的前10个结果
-    sql = "SELECT DISTINCT TOP 10 %s FROM %s WHERE %s like '%%%s%%'" % (column, DB_TABLE, column, kw)
+    sql = "SELECT DISTINCT %s FROM %s WHERE %s like '%%%s%%' LIMIT 0,10" % \
+          (column, DB_TABLE, column, kw)
+
     try:
         df = pd.read_sql_query(sql, ENGINE)
+
         l = df.values.flatten().tolist()
+        print(df, l, type(df), type(l))
+
         results_list = []
         for element in l:
             option_dict = {'name': element,
@@ -148,7 +153,9 @@ def search(request, column, kw):
             "results": results_list,
             "code": 200,
         }
+
     except Exception as e:
+
         res = {
             "success": False,
             "errMsg": e,
@@ -156,5 +163,6 @@ def search(request, column, kw):
         }
 
     # 返回结果必须是json格式
-    return HttpResponse(json.dumps(res, ensure_ascii=False), content_type="application/json charset=utf-8")
+    return HttpResponse(json.dumps(res, ensure_ascii=False),
+                        content_type="application/json charset=utf-8")
 '''
