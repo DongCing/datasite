@@ -3,22 +3,27 @@ from django.shortcuts import render
 from sqlalchemy import create_engine
 import pandas as pd
 import numpy as np
+import json
+
 
 # 创建数据库连接引擎
 ENGINE = create_engine('mysql+pymysql://root:111111@localhost:3306/dap')
 DB_TABLE = 'chpa_data_data'
 
-'''
-def index(request):
-    # 标准sql语句，此处为测试返回数据库data表的数据条目n，之后可以用python处理字符串的方式动态扩展
-    sql = "Select count(*) from chpa_data_data"
-    # 将sql语句结果读取至Pandas Dataframe
-    df = pd.read_sql_query(sql, ENGINE)
-
-    context = {'data': df}
-    return render(request, 'chpa_data/display.html', context)
-    # return HttpResponse(df.to_html())
-'''
+# 该字典key为前端准备显示的所有多选字段名, value为数据库对应的字段名
+D_MULTI_SELECT = {
+    'TC I': 'I',
+    'TC II': 'II',
+    'TC III': 'III',
+    'TC IV': 'IV',
+    '通用名|MOLECULE': 'MOLECULE',
+    '商品名|PRODUCT': 'PRODUCT',
+    '包装|PACKAGE': 'PACKAGE',
+    '生产企业|CORPORATION': 'CORPORATION',
+    '企业类型': 'MANUF_TYPE',
+    '剂型': 'FORMULATION',
+    '剂量': 'STRENGTH'
+}
 
 
 # 获取筛选数据
@@ -97,10 +102,59 @@ def index(request):
     if pivoted.empty is False:
         pivoted.sort_values(by=pivoted.index[-1], axis=1, ascending=False, inplace=True)  # 结果按照最后一个DATE表现排序
 
+    mselect_dict = {}
+    for key, value in D_MULTI_SELECT.items():
+        mselect_dict[key] = {}
+        mselect_dict[key]['select'] = value
+
+        # 以后可以后端通过列表为每个多选控件传递备选项
+        # option_list可以通过sql Distinct语句或Pandas的Unique方法获得，在此不再赘述
+        mselect_dict[key]['options'] = get_distinct_list(value, DB_TABLE)
+
     context = {
         'market_size': kpi(pivoted)[0],
         'market_gr': kpi(pivoted)[1],
         'market_cagr': kpi(pivoted)[2],
-        'ptable': ptable(pivoted).to_html()
+        'ptable': ptable(pivoted).to_html(),
+
+        'mselect_dict': mselect_dict
     }
-    return render(request, 'chpa_data/display.html', context)
+    return render(request, 'chpa_data/analysis.html', context)
+
+
+# 下面是一个获得各个字段option_list的简单方法
+def get_distinct_list(column, db_table):
+    sql = "Select DISTINCT " + column + " From " + db_table
+    df = pd.read_sql_query(sql, ENGINE)
+    op_list = df.values.flatten().tolist()
+    return op_list
+
+
+'''
+def search(request, column, kw):
+    # 最简单的单一字符串like，返回不重复的前10个结果
+    sql = "SELECT DISTINCT TOP 10 %s FROM %s WHERE %s like '%%%s%%'" % (column, DB_TABLE, column, kw)
+    try:
+        df = pd.read_sql_query(sql, ENGINE)
+        l = df.values.flatten().tolist()
+        results_list = []
+        for element in l:
+            option_dict = {'name': element,
+                           'value': element,
+                           }
+            results_list.append(option_dict)
+        res = {
+            "success": True,
+            "results": results_list,
+            "code": 200,
+        }
+    except Exception as e:
+        res = {
+            "success": False,
+            "errMsg": e,
+            "code": 0,
+        }
+
+    # 返回结果必须是json格式
+    return HttpResponse(json.dumps(res, ensure_ascii=False), content_type="application/json charset=utf-8")
+'''
