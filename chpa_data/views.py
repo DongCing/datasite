@@ -4,6 +4,7 @@ from sqlalchemy import create_engine
 import pandas as pd
 import numpy as np
 import json
+import six
 
 
 # 创建数据库连接引擎
@@ -28,11 +29,35 @@ D_MULTI_SELECT = {
 
 # 获取筛选数据
 # period, unit 必选的两个筛选字段;filter_sql 为其它可选的筛选字段
-def sqlparse(period, unit, filter_sql=None):
-    sql = "Select * from %s Where PERIOD = '%s' And UNIT = '%s'" % (DB_TABLE, period, unit)
-    if filter_sql is not None:
-        # 其它可选的筛选字段，如有则以 And 连接自定义字符串
-        sql = "%s And %s" % (sql, filter_sql)
+# def sqlparse(period, unit, filter_sql=None):
+#     sql = "Select * from %s Where PERIOD = '%s' And UNIT = '%s'" % (DB_TABLE, period, unit)
+#     if filter_sql is not None:
+#         # 其它可选的筛选字段，如有则以 And 连接自定义字符串
+#         sql = "%s And %s" % (sql, filter_sql)
+#     return sql
+def sqlparse(context):
+    print(context)
+    sql = "Select * from %s Where PERIOD = '%s' And UNIT = '%s'" % \
+          (DB_TABLE, context['PERIOD_select'][0], context['UNIT_select'][0])  # 先处理单选部分
+
+    # 下面循环处理多选部分
+    for k, v in context.items():
+        if k not in ['csrfmiddlewaretoken', 'DIMENSION_select', 'PERIOD_select', 'UNIT_select']:
+            field_name = k[:-9]  # 字段名
+            selected = v  # 选择项
+            # 未来可以通过进一步拼接字符串动态扩展sql语句
+            sql = sql_extent(sql, field_name, selected)
+    return sql
+
+
+def sql_extent(sql, field_name, selected, operator=" AND "):
+    if selected is not None:
+        statement = ''
+        for data in selected:
+            statement = statement + "'" + data + "', "
+        statement = statement[:-2]
+        if statement != '':
+            sql = sql + operator + field_name + " in (" + statement + ")"
     return sql
 
 
@@ -90,6 +115,7 @@ def ptable(df):
     return df_combined
 
 
+'''
 def index(request):
     sql = sqlparse('MAT', 'Value', " III = 'C09C ANGIOTENS-II ANTAG, PLAIN|血管紧张素II拮抗剂，单一用药'")  # 读取ARB市场的滚动年销售额数据
     df = pd.read_sql_query(sql, ENGINE)  # 将sql语句结果读取至Pandas Dataframe
@@ -120,6 +146,20 @@ def index(request):
         'mselect_dict': mselect_dict
     }
     return render(request, 'chpa_data/analysis.html', context)
+'''
+
+
+def index(request):
+    mselect_dict = {}
+    for key, value in D_MULTI_SELECT.items():
+        mselect_dict[key] = {}
+        mselect_dict[key]['select'] = value
+        mselect_dict[key]['options'] = get_distinct_list(value, DB_TABLE)
+
+    context = {
+        'mselect_dict': mselect_dict
+    }
+    return render(request, 'chpa_data/display.html', context)
 
 
 # 下面是一个获得各个字段option_list的简单方法
@@ -128,6 +168,48 @@ def get_distinct_list(column, db_table):
     df = pd.read_sql_query(sql, ENGINE)
     op_list = df.values.flatten().tolist()
     return op_list
+
+
+def query(request):
+
+    print('1')
+
+    form_dict = dict(six.iterlists(request.GET))
+    sql = sqlparse(form_dict)  # sql拼接
+
+    print(sql)
+
+    # 将sql语句结果读取至Pandas Dataframe
+    df = pd.read_sql_query(sql, ENGINE)
+
+    print('2')
+
+    dimension_selected = form_dict['DIMENSION_select'][0]
+    #  如果字段名有空格为了SQL语句在预设字典中加了中括号的，这里要去除
+    if dimension_selected[0] == '[':
+
+        column = dimension_selected[1:][:-1]
+    else:
+        column = dimension_selected
+    pivoted = pd.pivot_table(df,
+                             values='AMOUNT',  # 数据透视汇总值为AMOUNT字段，一般保持不变
+                             index='DATE',  # 数据透视行为DATE字段，一般保持不变
+                             columns=column,  # 数据透视列为前端选择的分析维度
+                             aggfunc=np.sum)  # 数据透视汇总方式为求和，一般保持不变
+    if pivoted.empty is False:
+        # 结果按照最后一个DATE表现排序
+        pivoted.sort_values(by=pivoted.index[-1], axis=1, ascending=False, inplace=True)
+
+    context = {
+        'market_size': str(kpi(pivoted)[0]),
+        'market_gr': str(kpi(pivoted)[1]),
+        'market_cagr': str(kpi(pivoted)[2]),
+        'ptable': ptable(pivoted).to_html(),
+    }
+
+    # 返回结果必须是json格式
+    return HttpResponse(json.dumps(context, ensure_ascii=False),
+                        content_type="application/json charset=utf-8")
 
 
 '''
@@ -166,3 +248,5 @@ def search(request, column, kw):
     return HttpResponse(json.dumps(res, ensure_ascii=False),
                         content_type="application/json charset=utf-8")
 '''
+
+

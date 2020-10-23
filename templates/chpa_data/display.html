@@ -1,6 +1,14 @@
 {% extends "chpa_data/analysis.html" %}
 
 {% block display %}
+
+{#用户体验的细节问题，我们希望查询出数后有个loading界面，#}
+{#这在数据量大时很有用。可以使用Semantic UI的Dimmer（遮罩）组件    #}
+<!-- 数据处理时的loading遮罩 -->
+{#<div class="ui active dimmer" id="dimmer">#}
+{#    <div class="ui text" style="color: #FFFFFF">请使用左侧筛选框选择分析维度和定义市场</div>#}
+{#</div>#}
+
 <!-- 创建2个Semantic UI tab，根据鼠标点击切换，以保证页面干净清爽 -->
 <div class="ui pointing secondary menu">
     <a class="item active" data-tab="total"><i class="circle icon"></i>总体表现</a>
