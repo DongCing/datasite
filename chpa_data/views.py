@@ -149,6 +149,7 @@ def index(request):
 '''
 
 
+# 只保留初始化表单备选项的功能
 def index(request):
     mselect_dict = {}
     for key, value in D_MULTI_SELECT.items():
@@ -173,7 +174,7 @@ def get_distinct_list(column, db_table):
 def query(request):
 
     print('1')
-
+    # 动态获取筛选参数,并处理成sql语句
     form_dict = dict(six.iterlists(request.GET))
     sql = sqlparse(form_dict)  # sql拼接
 
@@ -207,7 +208,7 @@ def query(request):
         'ptable': ptable(pivoted).to_html(),
     }
 
-    # 返回结果必须是json格式
+    # 使用AJAX返回结果必须是json格式,不渲染具体页面
     return HttpResponse(json.dumps(context, ensure_ascii=False),
                         content_type="application/json charset=utf-8")
 
