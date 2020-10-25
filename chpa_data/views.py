@@ -36,7 +36,7 @@ D_MULTI_SELECT = {
 #         sql = "%s And %s" % (sql, filter_sql)
 #     return sql
 def sqlparse(context):
-    print(context)
+
     sql = "Select * from %s Where PERIOD = '%s' And UNIT = '%s'" % \
           (DB_TABLE, context['PERIOD_select'][0], context['UNIT_select'][0])  # 先处理单选部分
 
@@ -173,17 +173,12 @@ def get_distinct_list(column, db_table):
 
 def query(request):
 
-    print('1')
     # 动态获取筛选参数,并处理成sql语句
     form_dict = dict(six.iterlists(request.GET))
     sql = sqlparse(form_dict)  # sql拼接
 
-    print(sql)
-
     # 将sql语句结果读取至Pandas Dataframe
     df = pd.read_sql_query(sql, ENGINE)
-
-    print('2')
 
     dimension_selected = form_dict['DIMENSION_select'][0]
     #  如果字段名有空格为了SQL语句在预设字典中加了中括号的，这里要去除
@@ -201,16 +196,40 @@ def query(request):
         # 结果按照最后一个DATE表现排序
         pivoted.sort_values(by=pivoted.index[-1], axis=1, ascending=False, inplace=True)
 
+    # 调整数据格式
+    table = ptable(pivoted)
+    table = table.to_html(formatters=build_formatters_by_col(table))
+
     context = {
         'market_size': str(kpi(pivoted)[0]),
         'market_gr': str(kpi(pivoted)[1]),
         'market_cagr': str(kpi(pivoted)[2]),
-        'ptable': ptable(pivoted).to_html(),
+        # 'ptable': ptable(pivoted).to_html(),
+
+        'ptable': table,
     }
 
     # 使用AJAX返回结果必须是json格式,不渲染具体页面
     return HttpResponse(json.dumps(context, ensure_ascii=False),
                         content_type="application/json charset=utf-8")
+
+
+def build_formatters_by_col(df):
+    format_abs = (lambda x: '{:,.0f}'.format(x))
+    format_share = (lambda x: '{:.1%}'.format(x))
+    format_gr = (lambda x: '{:.1%}'.format(x))
+    format_currency = (lambda x: '¥{:,.0f}'.format(x))
+    d = {}
+    for column in df.columns:
+        if '份额' in column or '贡献' in column:
+            d[column] = format_share
+        elif '价格' in column or '单价' in column:
+            d[column] = format_currency
+        elif '同比增长' in column or '增长率' in column or 'CAGR' in column or '同比变化' in column:
+            d[column] = format_gr
+        else:
+            d[column] = format_abs
+    return d
 
 
 '''
@@ -249,5 +268,3 @@ def search(request, column, kw):
     return HttpResponse(json.dumps(res, ensure_ascii=False),
                         content_type="application/json charset=utf-8")
 '''
-
-
