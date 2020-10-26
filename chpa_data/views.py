@@ -233,6 +233,7 @@ def query(request):
                         content_type="application/json charset=utf-8")
 
 
+# 前端表格格式化
 def build_formatters_by_col(df):
     format_abs = (lambda x: '{:,.0f}'.format(x))
     format_share = (lambda x: '{:.1%}'.format(x))
