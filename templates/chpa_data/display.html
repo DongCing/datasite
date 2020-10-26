@@ -58,16 +58,54 @@
         </div>
     </h3>
     <div class="ui divider"></div>
-
+    <div class="ui top attached button" tabindex="0"
+         onclick="selectElementContents( document.getElementById('ptable') );"
+         data-content="复制成功" data-position="bottom center">
+        <i class="copy icon"></i>
+        复制到剪贴板
+    </div>
+    <div class="ui hidden divider"></div>
     <div class="ui container" id='result_table' style="width: 100%; overflow-x: scroll; overflow-y: hidden;">
         <!-- Django渲染html代码时需要加入|safe，保证html不会被自动转义 -->
         {{ ptable|safe }}
     </div>
-
 </div>
 
 <!-- 下方js为保证Semantic UI tab类工作 -->
 <script>
     $('.pointing.secondary.menu .item').tab();
+</script>
+
+<script>
+    // 复制有node结构的文本区域
+    function selectElementContents(el) {
+        var body = document.body, range, sel;
+        if (document.createRange && window.getSelection) {
+            range = document.createRange();
+            sel = window.getSelection();
+            sel.removeAllRanges();
+            try {
+                range.selectNodeContents(el);
+                sel.addRange(range);
+            } catch (e) {
+                range.selectNode(el);
+                sel.addRange(range);
+            }
+        } else if (body.createTextRange) {
+            range = body.createTextRange();
+            range.moveToElementText(el);
+            range.select();
+        }
+        document.execCommand("Copy");
+    }
+</script>
+
+<script>
+    // 按钮点击后有弹出文本，显示data-content内容“复制成功”
+    $('.ui.top.attached.button')
+        .popup({
+            on: 'click'
+        })
+    ;
 </script>
 {% endblock %}

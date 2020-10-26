@@ -198,7 +198,10 @@ def query(request):
 
     # 调整数据格式
     table = ptable(pivoted)
-    table = table.to_html(formatters=build_formatters_by_col(table))
+    table = table.to_html(formatters=build_formatters_by_col(table),  # 逐列调整表格内数字格式
+                          classes='ui selectable celled table',  # 指定表格css class为Semantic UI主题
+                          table_id='ptable'  # 指定表格id
+                          )
 
     context = {
         'market_size': str(kpi(pivoted)[0]),
