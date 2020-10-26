@@ -101,11 +101,22 @@
                 // 第一行的'ptable'是视图端传来的context字典的键值
                 // 为id为ptable的DOM表格初始化DataTables，即上一行刚刚修改了DOM元素的那个
                 initTable($("#ptable"))
+
+                // 展示Pyecharts整体市场柱状组合图
+                chart.clear();
+                chart.setOption(ret['bar_total_trend']);
+                chart.hideLoading()
             },
             error: function () {            //失败
                 console.log('失败')
             }
         });
+
+        // Pyecharts图表初始化
+        var chart = echarts.init(document.getElementById('bar_total_trend'), 'white', {renderer: 'canvas'});
+        chart.showLoading({
+          text : '正在加载数据'
+        });  //增加加载提示
     })
 
     function initTable(table) {

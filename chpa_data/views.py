@@ -1,6 +1,7 @@
 from django.http import HttpResponse
 from django.shortcuts import render
 from sqlalchemy import create_engine
+from .chartss import *
 import pandas as pd
 import numpy as np
 import json
@@ -26,6 +27,19 @@ D_MULTI_SELECT = {
     '剂量': 'STRENGTH'
 }
 
+D_TRANS = {
+    'MAT': '滚动年',
+    'QTR': '季度',
+    'Value': '金额',
+    'Volume': '盒数',
+    'Volume (Counting Unit)': '最小制剂单位数',
+    '滚动年': 'MAT',
+    '季度': 'QTR',
+    '金额': 'Value',
+    '盒数': 'Volume',
+    '最小制剂单位数': 'Volume (Counting Unit)'
+}
+
 
 # 获取筛选数据
 # period, unit 必选的两个筛选字段;filter_sql 为其它可选的筛选字段
@@ -36,7 +50,6 @@ D_MULTI_SELECT = {
 #         sql = "%s And %s" % (sql, filter_sql)
 #     return sql
 def sqlparse(context):
-
     sql = "Select * from %s Where PERIOD = '%s' And UNIT = '%s'" % \
           (DB_TABLE, context['PERIOD_select'][0], context['UNIT_select'][0])  # 先处理单选部分
 
@@ -172,7 +185,6 @@ def get_distinct_list(column, db_table):
 
 
 def query(request):
-
     # 动态获取筛选参数,并处理成sql语句
     form_dict = dict(six.iterlists(request.GET))
     sql = sqlparse(form_dict)  # sql拼接
@@ -203,6 +215,9 @@ def query(request):
                           table_id='ptable'  # 指定表格id
                           )
 
+    # Pyecharts交互图表
+    bar_total_trend = json.loads(prepare_chart(pivoted, 'bar_total_trend', form_dict))
+
     context = {
         'market_size': str(kpi(pivoted)[0]),
         'market_gr': str(kpi(pivoted)[1]),
@@ -210,6 +225,7 @@ def query(request):
         # 'ptable': ptable(pivoted).to_html(),
 
         'ptable': table,
+        'bar_total_trend': bar_total_trend,
     }
 
     # 使用AJAX返回结果必须是json格式,不渲染具体页面
@@ -233,6 +249,31 @@ def build_formatters_by_col(df):
         else:
             d[column] = format_abs
     return d
+
+
+def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始df
+                  chart_type,  # 图表类型字符串，人为设置，根据图表类型不同做不同的Pandas数据处理，及生成不同的Pyechart对象
+                  form_dict,  # 前端表单字典，用来获得一些变量作为图表的标签如单位
+                  ):
+    label = D_TRANS[form_dict['PERIOD_select'][0]] + D_TRANS[form_dict['UNIT_select'][0]]
+
+    if chart_type == 'bar_total_trend':
+        df_abs = df.sum(axis=1)  # Pandas列汇总，返回一个N行1列的series，每行是一个date的市场综合
+        # 行索引日期数据变成2020-06的形式
+        # df_abs.index = df_abs.index.strftime("%Y-%m")
+        df_abs = df_abs.to_frame()  # series转换成df
+        df_abs.columns = [label]  # 用一些设置变量为系列命名，准备作为图表标签
+        df_gr = df_abs.pct_change(periods=4)  # 获取同比增长率
+        df_gr.dropna(how='all', inplace=True)  # 删除没有同比增长率的行，也就是时间序列数据的最前面几行，他们没有同比
+        df_gr.replace([np.inf, -np.inf, np.nan], '-', inplace=True)  # 所有分母为0或其他情况导致的inf和nan都转换为'-'
+
+        # 调用stackbar方法生成Pyecharts图表对象
+        chart = echarts_stackbar(df=df_abs,
+                                 df_gr=df_gr
+                                 )
+        return chart.dump_options()  # 用json格式返回Pyecharts图表对象的全局设置
+    else:
+        return None
 
 
 '''
