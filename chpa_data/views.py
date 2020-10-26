@@ -259,8 +259,12 @@ def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始d
 
     if chart_type == 'bar_total_trend':
         df_abs = df.sum(axis=1)  # Pandas列汇总，返回一个N行1列的series，每行是一个date的市场综合
+
         # 行索引日期数据变成2020-06的形式
         # df_abs.index = df_abs.index.strftime("%Y-%m")
+        df_abs.index = [x.strftime("%Y-%m") for x in df_abs.index]
+        # print([x.strftime("%Y-%m") for x in df_abs.index])
+
         df_abs = df_abs.to_frame()  # series转换成df
         df_abs.columns = [label]  # 用一些设置变量为系列命名，准备作为图表标签
         df_gr = df_abs.pct_change(periods=4)  # 获取同比增长率
