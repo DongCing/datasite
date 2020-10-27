@@ -13,7 +13,10 @@
 <div class="ui pointing secondary menu">
     <a class="item active" data-tab="total"><i class="circle icon"></i>总体表现</a>
     <a class="item" data-tab="competition"><i class="trophy icon"></i>竞争现状</a>
+    <!-- 静态图表，添加一个展示气泡图的tab，重点是留一个空的<img>标签 -->
+    <a class="item" data-tab="bubble_performance"><i class="braille icon"></i>规模 vs. 增长</a>
 </div>
+
 <div class="ui tab segment active" data-tab="total">
     <h3 class="ui header">
         <div class="content">
@@ -74,6 +77,21 @@
     <div class="ui container" id='result_table' style="width: 100%; overflow-x: scroll; overflow-y: hidden;">
         <!-- Django渲染html代码时需要加入|safe，保证html不会被自动转义 -->
         {{ ptable|safe }}
+    </div>
+</div>
+
+<!-- 静态图表 -->
+<div class="ui tab segment" data-tab="bubble_performance">
+    <h3 class="ui header">
+        <div class="content">
+            规模 versus 增长
+            <div class="sub header">带线性拟合的气泡图</div>
+        </div>
+    </h3>
+    <div class="ui divider"></div>
+    <div class="ui container">
+        <!-- style="width: 100%"，没有这句图片将展示原始尺寸 -->
+        <img id="bubble_performance" style="width: 100%" alt="" />
     </div>
 </div>
 

@@ -106,6 +106,9 @@
                 chart.clear();
                 chart.setOption(ret['bar_total_trend']);
                 chart.hideLoading()
+
+                // 展示Matplotlib气泡图
+                $("#bubble_performance").attr('src', ret['bubble_performance']);
             },
             error: function () {            //失败
                 console.log('失败')

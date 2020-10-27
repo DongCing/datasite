@@ -1,6 +1,19 @@
 from pyecharts.charts import Line, Bar
 from pyecharts import options as opts
 
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+import matplotlib as mpl
+from matplotlib.ticker import FuncFormatter
+from adjustText import adjust_text
+from io import BytesIO
+import base64
+import scipy.stats as stats
+
+
+myfont = fm.FontProperties(fname='/usr/share/fonts/truetype/arphic/ukai.ttc')
+
 
 def echarts_stackbar(df,  # 传入数据df，应该是一个行索引为date的时间序列面板数据
                      df_gr=None,  # 传入同比增长率df，可以没有
@@ -87,3 +100,128 @@ def echarts_stackbar(df,  # 传入数据df，应该是一个行索引为date的�
         return stackbar.overlap(line)  # 如果有次坐标轴最后要用overlap方法组合
     else:
         return stackbar
+
+
+# 绘制气泡图
+def mpl_bubble(x, y, z, labels, title, x_title, y_title,
+               x_fmt='{:.0%}', y_fmt='{:+.0%}',
+               y_avg_line=False, y_avg_value=None, y_avg_label='',
+               x_avg_line=False, x_avg_value=None, x_avg_label='',
+               x_max=None, x_min=None, y_max=None, y_min=None,
+               show_label=True, label_limit=15,
+               z_scale=1, color_scheme='随机颜色方案', color_list=None):
+
+    z = [x * z_scale for x in z]  # 气泡大小系数
+
+    fig, ax = plt.subplots()  # 准备画布和轴
+    fig.set_size_inches(15, 10)  # 画布尺寸
+
+    # 手动强制xy轴最小值/最大值
+    if x_min is not None and x_min > min(x):
+        ax.set_xlim(xmin=x_min)
+    if x_max is not None and x_max < max(x):
+        ax.set_xlim(xmax=x_max)
+    if y_min is not None and y_min > min(y):
+        ax.set_ylim(ymin=y_min)
+    if y_max is not None and y_max < max(y):
+        ax.set_ylim(ymax=y_max)
+
+    # 确定颜色方案
+    if color_scheme == '随机颜色方案' or color_scheme is None:
+        cmap = mpl.colors.ListedColormap(np.random.rand(256, 3))
+        colors = iter(cmap(np.linspace(0, 1, len(x))))
+    else:
+        if len(x) <= len(color_list):
+            colors = color_list[:len(x)]
+        else:
+            colors = []
+            for i in range(len(x)):
+                colors.append(color_list[i % len(color_list)])
+        colors = iter(colors)
+
+    # 绘制气泡
+    for i in range(len(x)):
+        ax.scatter(x[i], y[i], z[i], color=next(colors), alpha=0.6, edgecolors="black")
+
+    # 添加系列标签，用adjust_text包保证标签互不重叠
+    if show_label is True:
+        texts = [plt.text(x[i], y[i], labels[i],
+                          ha='center', va='center', multialignment='center', fontproperties=myfont, fontsize=10) for
+                 i
+                 in range(len(labels[:label_limit]))]
+        adjust_text(texts, force_text=0.5, arrowprops=dict(arrowstyle='->', color='black'))
+
+    # 添加分隔线（均值，中位数，0等）
+    if y_avg_line is True:
+        ax.axhline(y_avg_value, linestyle='--', linewidth=1, color='grey')
+        plt.text(ax.get_xlim()[1], y_avg_value, y_avg_label, ha='left', va='center', color='r',
+                 multialignment='center',
+                 fontproperties=myfont, fontsize=10)
+    if x_avg_line is True:
+        ax.axvline(x_avg_value, linestyle='--', linewidth=1, color='grey')
+        plt.text(x_avg_value, ax.get_ylim()[1], x_avg_label, ha='left', va='top',
+                 color='r', multialignment='center', fontproperties=myfont, fontsize=10)
+
+    # 设置轴标签格式
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda y, _: x_fmt.format(y)))
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: y_fmt.format(y)))
+
+    # 添加图表标题和轴标题
+    plt.title(title, fontproperties=myfont)
+    plt.xlabel(x_title, fontproperties=myfont, fontsize=12)
+    plt.ylabel(y_title, fontproperties=myfont, fontsize=12)
+
+    """以下部分绘制回归拟合曲线及CI和PI
+    参考
+    http://nbviewer.ipython.org/github/demotu/BMC/blob/master/notebooks/CurveFitting.ipynb
+    https://stackoverflow.com/questions/27164114/show-confidence-limits-and-prediction-limits-in-scatter-plot
+    """
+
+    n = y.size  # 观察例数
+    if n > 2:  # 数据点必须大于cov矩阵的scale
+        # 简单线性回归返回parameter和covariance
+        p, cov = np.polyfit(x, y, 1, cov=True)
+        poly1d_fn = np.poly1d(p)  # 拟合方程
+        y_model = poly1d_fn(x)  # 拟合的y值
+        m = p.size  # 参数个数
+
+        dof = n - m  # degrees of freedom
+        t = stats.t.ppf(0.975, dof)  # 显著性检验t值
+
+        # 拟合结果绘图
+        ax.plot(x, y_model, "-", color="0.1", linewidth=1.5, alpha=0.5, label="Fit")
+
+        # 误差估计
+        resid = y - y_model  # 残差
+        s_err = np.sqrt(np.sum(resid ** 2) / dof)  # 标准误差
+
+        # 拟合CI和PI
+        x2 = np.linspace(np.min(x), np.max(x), 100)
+        y2 = poly1d_fn(x2)
+
+        # CI计算和绘图
+        print('类型', type(t))
+        print('类型', type(s_err))
+        print('类型', type(np.sqrt(1 / n + (x2 - np.mean(x)) ** 2 / np.sum((x - np.mean(x)) ** 2))))
+
+        ci = t * s_err * np.sqrt(1 / n + (x2 - np.mean(x)) ** 2 / np.sum((x - np.mean(x)) ** 2))
+        ax.fill_between(x2, y2 + ci, y2 - ci, color="#b9cfe7", edgecolor="", alpha=0.5)
+
+        # Pi计算和绘图
+        pi = t * s_err * np.sqrt(1 + 1 / n + (x2 - np.mean(x)) ** 2 / np.sum((x - np.mean(x)) ** 2))
+        ax.fill_between(x2, y2 + pi, y2 - pi, color="None", linestyle="--")
+        ax.plot(x2, y2 - pi, "--", color="0.5", label="95% Prediction Limits")
+        ax.plot(x2, y2 + pi, "--", color="0.5")
+
+    # 保存到字符串
+    sio = BytesIO()
+    plt.savefig(sio, format='png', bbox_inches='tight', transparent=True, dpi=600)
+    data = base64.encodebytes(sio.getvalue()).decode()  # 解码为base64编码的png图片数据
+    src = 'data:image/png;base64,' + str(data)  # 增加Data URI scheme
+
+    # 关闭绘图进程
+    plt.clf()
+    plt.cla()
+    plt.close()
+
+    return src

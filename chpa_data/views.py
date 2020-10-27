@@ -215,8 +215,11 @@ def query(request):
                           table_id='ptable'  # 指定表格id
                           )
 
-    # Pyecharts交互图表
+    # Pyecharts 交互图表
     bar_total_trend = json.loads(prepare_chart(pivoted, 'bar_total_trend', form_dict))
+
+    # Matplotlib 静态图表
+    bubble_performance = prepare_chart(pivoted, 'bubble_performance', form_dict)
 
     context = {
         'market_size': str(kpi(pivoted)[0]),
@@ -226,6 +229,8 @@ def query(request):
 
         'ptable': table,
         'bar_total_trend': bar_total_trend,
+
+        'bubble_performance': bubble_performance
     }
 
     # 使用AJAX返回结果必须是json格式,不渲染具体页面
@@ -277,6 +282,29 @@ def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始d
                                  df_gr=df_gr
                                  )
         return chart.dump_options()  # 用json格式返回Pyecharts图表对象的全局设置
+
+    # 静态图标
+    # 生成数据并传入到之前准备好的绘图方法中。注意和Pyehcarts不一样，这里直接取得返回的值就好了，不需要.dump_options()
+    elif chart_type == 'bubble_performance':
+        df_abs = df.iloc[-1, :]  # 获取最新时间粒度的绝对值
+        df_share = df.transform(lambda x: x / x.sum(), axis=1).iloc[-1, :]  # 获取份额
+        df_diff = df.diff(periods=4).iloc[-1, :]  # 获取同比净增长
+
+        chart = mpl_bubble(x=df_abs,  # x轴数据
+                           y=df_diff,  # y轴数据
+                           z=df_share * 50000,  # 气泡大小数据
+                           labels=df.columns.str.split('|').str[0],  # 标签数据
+                           title='',  # 图表标题
+                           x_title=label,  # x轴标题
+                           y_title=label + '净增长',  # y轴标题
+                           x_fmt='{:,.0f}',  # x轴格式
+                           y_fmt='{:,.0f}',  # y轴格式
+                           y_avg_line=True,  # 添加y轴分隔线
+                           y_avg_value=0,  # y轴分隔线为y=0
+                           label_limit=30  # 只显示前30个项目的标签
+                           )
+        return chart
+
     else:
         return None
 
