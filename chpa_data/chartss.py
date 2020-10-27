@@ -200,12 +200,8 @@ def mpl_bubble(x, y, z, labels, title, x_title, y_title,
         y2 = poly1d_fn(x2)
 
         # CI计算和绘图
-        print('类型', type(t))
-        print('类型', type(s_err))
-        print('类型', type(np.sqrt(1 / n + (x2 - np.mean(x)) ** 2 / np.sum((x - np.mean(x)) ** 2))))
-
         ci = t * s_err * np.sqrt(1 / n + (x2 - np.mean(x)) ** 2 / np.sum((x - np.mean(x)) ** 2))
-        ax.fill_between(x2, y2 + ci, y2 - ci, color="#b9cfe7", edgecolor="", alpha=0.5)
+        ax.fill_between(x2, y2 + ci, y2 - ci, color="#b9cfe7", alpha=0.5)
 
         # Pi计算和绘图
         pi = t * s_err * np.sqrt(1 + 1 / n + (x2 - np.mean(x)) ** 2 / np.sum((x - np.mean(x)) ** 2))

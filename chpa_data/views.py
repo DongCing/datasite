@@ -2,10 +2,13 @@ from django.http import HttpResponse
 from django.shortcuts import render
 from sqlalchemy import create_engine
 from .chartss import *
+from io import BytesIO
 import pandas as pd
 import numpy as np
 import json
 import six
+import datetime
+# import xlsxwriter
 
 
 # 创建数据库连接引擎
@@ -40,15 +43,32 @@ D_TRANS = {
     '最小制剂单位数': 'Volume (Counting Unit)'
 }
 
-
+'''
 # 获取筛选数据
 # period, unit 必选的两个筛选字段;filter_sql 为其它可选的筛选字段
-# def sqlparse(period, unit, filter_sql=None):
-#     sql = "Select * from %s Where PERIOD = '%s' And UNIT = '%s'" % (DB_TABLE, period, unit)
-#     if filter_sql is not None:
-#         # 其它可选的筛选字段，如有则以 And 连接自定义字符串
-#         sql = "%s And %s" % (sql, filter_sql)
-#     return sql
+def sqlparse(period, unit, filter_sql=None):
+    sql = "Select * from %s Where PERIOD = '%s' And UNIT = '%s'" % (DB_TABLE, period, unit)
+    if filter_sql is not None:
+        # 其它可选的筛选字段，如有则以 And 连接自定义字符串
+        sql = "%s And %s" % (sql, filter_sql)
+    return sql
+
+# 导出数据到Excel前
+def sqlparse(context):
+    sql = "Select * from %s Where PERIOD = '%s' And UNIT = '%s'" % \
+          (DB_TABLE, context['PERIOD_select'][0], context['UNIT_select'][0])  # 先处理单选部分
+    
+    # 下面循环处理多选部分
+    for k, v in context.items():
+        if k not in ['csrfmiddlewaretoken', 'DIMENSION_select', 'PERIOD_select', 'UNIT_select']:
+            field_name = k[:-9]  # 字段名
+            selected = v  # 选择项
+            # 未来可以通过进一步拼接字符串动态扩展sql语句
+            sql = sql_extent(sql, field_name, selected)
+    return sql
+'''
+
+
 def sqlparse(context):
     sql = "Select * from %s Where PERIOD = '%s' And UNIT = '%s'" % \
           (DB_TABLE, context['PERIOD_select'][0], context['UNIT_select'][0])  # 先处理单选部分
@@ -56,8 +76,12 @@ def sqlparse(context):
     # 下面循环处理多选部分
     for k, v in context.items():
         if k not in ['csrfmiddlewaretoken', 'DIMENSION_select', 'PERIOD_select', 'UNIT_select']:
-            field_name = k[:-9]  # 字段名
+            if k[-2:] == '[]':
+                field_name = k[:-9]  # 如果键以[]结尾，删除_select[]取原字段名
+            else:
+                field_name = k[:-7]  # 如果键不以[]结尾，删除_select取原字段名
             selected = v  # 选择项
+
             # 未来可以通过进一步拼接字符串动态扩展sql语句
             sql = sql_extent(sql, field_name, selected)
     return sql
@@ -184,6 +208,63 @@ def get_distinct_list(column, db_table):
     return op_list
 
 
+# 导出数据至Excel
+def get_df(form_dict, is_pivoted=True):
+    sql = sqlparse(form_dict)  # sql拼接
+    df = pd.read_sql_query(sql, ENGINE)  # 将sql语句结果读取至Pandas Dataframe
+
+    if is_pivoted is True:
+        dimension_selected = form_dict['DIMENSION_select'][0]
+        if dimension_selected[0] == '[':
+
+            column = dimension_selected[1:][:-1]
+        else:
+            column = dimension_selected
+
+        pivoted = pd.pivot_table(df,
+                                 values='AMOUNT',  # 数据透视汇总值为AMOUNT字段，一般保持不变
+                                 index='DATE',  # 数据透视行为DATE字段，一般保持不变
+                                 columns=column,  # 数据透视列为前端选择的分析维度
+                                 aggfunc=np.sum)  # 数据透视汇总方式为求和，一般保持不变
+        if pivoted.empty is False:
+            pivoted.sort_values(by=pivoted.index[-1], axis=1, ascending=False, inplace=True)  # 结果按照最后一个DATE表现排序
+
+        return pivoted
+    else:
+        return df
+
+
+# 先前的query方法的前一部分改写成get_df方法
+def query(request):
+    form_dict = dict(six.iterlists(request.GET))
+    pivoted = get_df(form_dict)
+
+    table = ptable(pivoted)
+    table = table.to_html(formatters=build_formatters_by_col(table),  # 逐列调整表格内数字格式
+                          classes='ui selectable celled table',  # 指定表格css class为Semantic UI主题
+                          table_id='ptable'  # 指定表格id
+                          )
+
+    # Pyecharts交互图表
+    bar_total_trend = json.loads(prepare_chart(pivoted, 'bar_total_trend', form_dict))
+
+    # Matplotlib静态图表
+    bubble_performance = prepare_chart(pivoted, 'bubble_performance', form_dict)
+    context = {
+        'market_size': str(kpi(pivoted)[0]),
+        'market_gr': str(kpi(pivoted)[1]),
+        'market_cagr': str(kpi(pivoted)[2]),
+        'ptable': table,
+        'bar_total_trend': bar_total_trend,
+        'bubble_performance': bubble_performance
+    }
+
+    # 返回结果必须是json格式
+    return HttpResponse(json.dumps(context, ensure_ascii=False),
+                        content_type="application/json charset=utf-8")
+
+
+'''
 def query(request):
     # 动态获取筛选参数,并处理成sql语句
     form_dict = dict(six.iterlists(request.GET))
@@ -236,6 +317,8 @@ def query(request):
     # 使用AJAX返回结果必须是json格式,不渲染具体页面
     return HttpResponse(json.dumps(context, ensure_ascii=False),
                         content_type="application/json charset=utf-8")
+
+'''
 
 
 # 前端表格格式化
@@ -307,6 +390,35 @@ def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始d
 
     else:
         return None
+
+
+def export(request, type):
+    form_dict = dict(six.iterlists(request.GET))
+
+    if type == 'pivoted':
+        df = get_df(form_dict)  # 透视后的数据
+    elif type == 'raw':
+        df = get_df(form_dict, is_pivoted=False)  # 原始数
+
+    excel_file = BytesIO()
+
+    xlwriter = pd.ExcelWriter(excel_file, engine='xlsxwriter')
+
+    df.to_excel(xlwriter, 'data', index=True)
+
+    xlwriter.save()
+    xlwriter.close()
+
+    excel_file.seek(0)
+
+    # 设置浏览器mime类型
+    response = HttpResponse(excel_file.read(),
+                            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+    # 设置文件名
+    now = datetime.datetime.now().strftime("%Y%m%d%H%M%S")  # 当前精确时间不会重复，适合用来命名默认导出文件
+    response['Content-Disposition'] = 'attachment; filename=' + now + '.xlsx'
+    return response
 
 
 '''

@@ -15,6 +15,8 @@
     <a class="item" data-tab="competition"><i class="trophy icon"></i>竞争现状</a>
     <!-- 静态图表，添加一个展示气泡图的tab，重点是留一个空的<img>标签 -->
     <a class="item" data-tab="bubble_performance"><i class="braille icon"></i>规模 vs. 增长</a>
+    <!-- 导出按钮 -->
+    <a class="item" data-tab="export"><i class="download icon"></i>导出数据</a>
 </div>
 
 <div class="ui tab segment active" data-tab="total">
@@ -95,6 +97,16 @@
     </div>
 </div>
 
+<!-- 导出数据按钮 -->
+<div class="ui tab segment" data-tab="export">
+    <div class="ui buttons">
+        <input class="ui blue button" type='button' id='export_pivot' value="导出整理后时间序列数据"/>
+    </div>
+    <div class="ui buttons">
+        <input class="ui blue button" type='button' id='export_raw' value="导出原始数据"/>
+    </div>
+</div>
+
 <!-- 下方js为保证Semantic UI tab类工作 -->
 <script>
     $('.pointing.secondary.menu .item').tab();
@@ -131,5 +143,21 @@
             on: 'click'
         })
     ;
+</script>
+
+<script>
+    $("#export_pivot").click(function(){
+        var form_data = getForm();
+
+        var downloadUrl = '{% url 'chpa:export' 'pivoted' %}'+ '?' + $.param(form_data, true);
+        window.location.href = downloadUrl;
+    });
+
+    $("#export_raw").click(function(){
+        var form_data = getForm();
+
+        var downloadUrl = '{% url 'chpa:export' 'raw' %}'+ '?' + $.param(form_data, true);
+        window.location.href = downloadUrl;
+    })
 </script>
 {% endblock %}

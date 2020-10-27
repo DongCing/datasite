@@ -191,3 +191,24 @@
     }
 
 </script>
+
+<script>
+    function getForm(){
+        // 获取单选下拉框的值
+        var form_data = {
+            "DIMENSION_select": $("#DIMENSION_select").val(),
+            "PERIOD_select": $("#PERIOD_select").val(),
+            "UNIT_select": $("#UNIT_select").val(),
+        };
+
+        // 获取多选下拉框的值
+        var dict = {{ mselect_dict|safe }};
+        for (key in dict) {
+            var form_name = dict[key]['select'] + "_select";
+            jquery_selector_id = "[id='" + form_name + "']";//因为我们的部分多选框id有空格，要用这种写法
+            form_data[form_name] = $(jquery_selector_id).val();
+        }
+
+        return form_data
+    }
+</script>
