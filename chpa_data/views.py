@@ -8,7 +8,6 @@ import numpy as np
 import json
 import six
 import datetime
-# import xlsxwriter
 
 
 # 创建数据库连接引擎
@@ -347,7 +346,8 @@ def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始d
     label = D_TRANS[form_dict['PERIOD_select'][0]] + D_TRANS[form_dict['UNIT_select'][0]]
 
     if chart_type == 'bar_total_trend':
-        df_abs = df.sum(axis=1)  # Pandas列汇总，返回一个N行1列的series，每行是一个date的市场综合
+        # Pandas列汇总，返回一个N行1列的series，每行是一个date的市场综合
+        df_abs = df.sum(axis=1)
 
         # 行索引日期数据变成2020-06的形式
         # df_abs.index = df_abs.index.strftime("%Y-%m")
