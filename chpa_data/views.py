@@ -1,3 +1,4 @@
+from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.shortcuts import render
 from sqlalchemy import create_engine
@@ -186,6 +187,7 @@ def index(request):
 
 
 # 只保留初始化表单备选项的功能
+@login_required
 def index(request):
     mselect_dict = {}
     for key, value in D_MULTI_SELECT.items():
@@ -234,6 +236,7 @@ def get_df(form_dict, is_pivoted=True):
 
 
 # 先前的query方法的前一部分改写成get_df方法
+@login_required
 def query(request):
     form_dict = dict(six.iterlists(request.GET))
     pivoted = get_df(form_dict)
@@ -392,6 +395,7 @@ def prepare_chart(df,  # 输入经过pivoted方法透视过的df，不是原始d
         return None
 
 
+@login_required
 def export(request, type):
     form_dict = dict(six.iterlists(request.GET))
 
